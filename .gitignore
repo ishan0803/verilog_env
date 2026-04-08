@@ -39,5 +39,3 @@ _synth_stats.json
 # Docker
 .dockerignore
 
-# uv
-uv.lock
