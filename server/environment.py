@@ -240,7 +240,7 @@ class VerilogEnvironment(Environment):
         try:
             if tool_name == "compile_and_lint":
                 result = compile_and_lint(
-                    target_file=tool_args.get("target_file", "rtl/alu.v"),
+                    target_file=tool_args.get("target_file", ""),
                     workspace_dir=ep.workspace_dir,
                 )
                 success = result.success

@@ -14,7 +14,7 @@ import textwrap
 import sys
 from typing import Any, Dict, List, Optional
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 # Import environment client and models
 from verilog_env import VerilogEnv, EDAAction, ToolName
@@ -29,7 +29,7 @@ API_KEY = os.getenv("GROQ_API_KEY") or os.getenv("XAI_API_KEY") or os.getenv("GR
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
 
 # Strictly use openai/gpt-oss-120b as requested
-MODEL_NAME = os.getenv("MODEL_NAME", "openai/gpt-oss-120b")
+MODEL_NAME = os.getenv("MODEL_NAME", "openai/gpt-oss-120b") 
 
 MAX_STEPS = 30
 TEMPERATURE = 0.1  # Bumped to 0.1 (some alternative APIs reject strict 0.0)
@@ -52,15 +52,17 @@ def _generate_tool_schema() -> str:
 
     # Per-tool argument documentation (derived from backend expectations)
     # These map to the kwargs each tool wrapper actually accepts
+    # These MUST exactly match the keys extracted via tool_args.get() in
+    # server/environment.py's step() method to prevent schema drift.
     tool_arg_docs = {
-        "compile_and_lint": '{"file_path": "<string>"}',
+        "compile_and_lint": '{"target_file": "<string>"}',
         "run_simulation": '{"testbench_file": "<string>"}',
-        "run_synthesis": '{"file_path": "<string>", "constraint_path": "<string>"}',
-        "run_timing_analysis": '{"file_path": "<string>", "constraint_path": "<string>"}',
+        "run_synthesis": '{"effort_level": "<low|medium|high>", "flatten": <boolean>}',
+        "run_timing_analysis": '{"clock_period_ns": <float>}',
         "query_metrics": '{"metric_type": "<string>"} (options: "area", "power", "timing", "synthesis", "all")',
         "modify_rtl": '{"file_path": "<string>", "diff_patch": "<string>"}',
-        "adjust_constraints": '{"file_path": "<string>", "diff_patch": "<string>"}',
-        "rollback_version": '{"step_id": "<integer>"}',
+        "adjust_constraints": '{"constraint_file": "<string>", "modifications": "<string>"}',
+        "rollback_version": '{"step_id": <integer>}',
     }
 
     lines = []
@@ -198,8 +200,8 @@ def _build_messages(
     return messages
 
 
-def get_agent_action(
-    client: OpenAI,
+async def get_agent_action(
+    client: AsyncOpenAI,
     step: int,
     observation: str,
     history: List[Dict[str, str]],
@@ -213,7 +215,7 @@ def get_agent_action(
     messages = _build_messages(step, observation, history, step0_observation)
 
     try:
-        completion = client.chat.completions.create(
+        completion = await client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,
             temperature=TEMPERATURE,
@@ -255,7 +257,7 @@ def get_agent_action(
         }
 
 
-async def run_task(client: OpenAI, task_seed: int) -> float:
+async def run_task(client: AsyncOpenAI, task_seed: int) -> float:
     """Run a single task episode and return the score."""
     env = None
     try:
@@ -291,7 +293,7 @@ async def run_task(client: OpenAI, task_seed: int) -> float:
             if result.done:
                 break
 
-            action_dict = get_agent_action(
+            action_dict = await get_agent_action(
                 client, step, observation_text, history, step0_observation
             )
 
@@ -389,7 +391,7 @@ async def main() -> None:
     print(SYSTEM_PROMPT)
     print("-------------------------------\n")
     
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    client = AsyncOpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
     scores = []
     for task_idx in range(3):

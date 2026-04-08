@@ -55,8 +55,8 @@ def compile_and_lint(
         result.errors = [result.raw_output]
         return result
 
-    # Build iverilog command
-    cmd = ["iverilog", "-t", "null"]
+    # Build iverilog command (with -g2012 for SystemVerilog support)
+    cmd = ["iverilog", "-g2012", "-t", "null"]
     if include_dirs:
         for d in include_dirs:
             cmd.extend(["-I", os.path.join(workspace_dir, d)])
